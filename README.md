@@ -57,7 +57,7 @@ const counters = {};
 })();
 ```
 
-Tests
+## Tests
 
 The tests will use Mocha and require MongoDB to be launched.
 

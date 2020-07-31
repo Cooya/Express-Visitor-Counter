@@ -11,6 +11,6 @@ const MongoClient = require('mongodb').MongoClient;
 	app.enable('trust proxy');
 	app.use(expressSession({ secret: 'secret', resave: false, saveUninitialized: true }));
 	app.use(expressVisitorCounter({ collection: counters }));
-	app.get('/', async (req, res, next) => res.json(await counters.find().toArray()));
+	app.get('/', async (req, res) => res.json(await counters.find().toArray()));
 	app.listen(8080);
 })();
