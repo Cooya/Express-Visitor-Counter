@@ -19,8 +19,11 @@ module.exports = (config = {}) => {
 		// determine the today date
 		const todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 
+		// determine the counter prefix
+		const counterPrefix = config.prefix || req.hostname;
+
 		// increment the counter of requests
-		incCounter(`${(config.prefix || req.hostname)}-requests-${todayDate}`);
+		incCounter(`${counterPrefix}-requests-${todayDate}`);
 
 		// check if the express-session middleware is enabled
 		if(req.session === undefined)
@@ -36,12 +39,17 @@ module.exports = (config = {}) => {
 
 		// "notFirstVisit" is used because when multiple requests come at the same time from the same web client, they are not identified with the same session id
 		// the last visit date is set only after the second wave of requests when the cookie has been initialized client-side
+		let withSession = false;
 		if(req.session.notFirstVisit && req.session.lastVisitDate !== todayDate) {
+			// set the last visit date for this visitor
 			req.session.lastVisitDate = todayDate;
-			if(!ipAddresses[todayDate][req.ip] || !ipAddresses[todayDate][req.ip].withSession) {
-				incCounter(`${(config.prefix || req.hostname)}-visitors-${todayDate}`);
-				ipAddresses[todayDate][req.ip].withSession = true;
-			}
+
+			// set the "withSession" boolean to true to avoid incrementing the visitor counter for the same IP with a different cookie
+			withSession = true;
+
+			// check if this visitor is not came today with the same IP but a different cookie
+			if(!ipAddresses[todayDate][req.ip] || !ipAddresses[todayDate][req.ip].withSession)
+				incCounter(`${counterPrefix}-visitors-${todayDate}`);
 		}
 		req.session.notFirstVisit = true;
 
@@ -50,10 +58,12 @@ module.exports = (config = {}) => {
 
 		// check if this IP address is new today
 		if(!ipAddresses[todayDate][req.ip]) {
-			ipAddresses[todayDate][req.ip] = { requests: 1, withSession: false };
-			incCounter(`${(config.prefix || req.hostname)}-ip-addresses-${todayDate}`);
-		} else
+			ipAddresses[todayDate][req.ip] = { requests: 1, withSession };
+			incCounter(`${counterPrefix}-ip-addresses-${todayDate}`);
+		} else {
 			ipAddresses[todayDate][req.ip].requests++;
+			ipAddresses[todayDate][req.ip].withSession = withSession || ipAddresses[todayDate][req.ip].withSession;
+		}
 		next();
 	};
 };

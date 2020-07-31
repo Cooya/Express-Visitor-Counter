@@ -1,5 +1,7 @@
 # Express-Visitor-Counter
 
+[![npm version](https://badge.fury.io/js/express-visitor-counter.svg)](https://www.npmjs.com/package/express-visitor-counter)
+
 Express middleware to count visitors using IP address and cookies.
 The middleware will increment 3 counters :
 
