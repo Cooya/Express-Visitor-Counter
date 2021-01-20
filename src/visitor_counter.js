@@ -7,9 +7,6 @@ module.exports = (config = {}) => {
 	// list of known IP addresses
 	const ipAddresses = {};
 
-	// to handle multiple requests at the same time
-	const sessions = {};
-
 	// call the hook or update the counter in the MongoDB collection
 	const incCounter = config.collection
 		? counterId => config.collection.updateOne({ id: counterId }, { $inc: { value: 1 } }, { upsert: true })
@@ -28,10 +25,6 @@ module.exports = (config = {}) => {
 		// check if the express-session middleware is enabled
 		if(req.session === undefined)
 			return next();
-
-		// if this session is already in memory, we retrieve it to get the last updates
-		if(sessions[req.session.id])
-			req.session = sessions[req.session.id];
 
 		// create a list for the current day to store IP addresses
 		if(!ipAddresses[todayDate])
@@ -52,9 +45,6 @@ module.exports = (config = {}) => {
 				incCounter(`${counterPrefix}-visitors-${todayDate}`);
 		}
 		req.session.notFirstVisit = true;
-
-		// save the session into memory
-		sessions[req.session.id] = req.session;
 
 		// check if this IP address is new today
 		if(!ipAddresses[todayDate][req.ip]) {
