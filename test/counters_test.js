@@ -47,7 +47,11 @@ describe('express-visitor-counter', () => {
 		// daily requests counter
 		let requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` })
 		assert.isNull(requestsCounter);
-	
+
+		// daily new visitors counter
+		let newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		assert.isNull(newVisitorsCounter);
+
 		// daily visitors counter
 		let visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
 		assert.isNull(visitorsCounter);
@@ -55,7 +59,7 @@ describe('express-visitor-counter', () => {
 		// daily ip addresses counter
 		let ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
 		assert.isNull(ipAddressesCounter);
-	
+
 		// create an HTTP agent
 		let agent = createAgent(counterMiddleware);
 	
@@ -67,11 +71,13 @@ describe('express-visitor-counter', () => {
 		]);
 		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` });
 		assert.equal(requestsCounter.value, 3);
+		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		assert.isNull(newVisitorsCounter);
 		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
 		assert.isNull(visitorsCounter);
 		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
 		assert.equal(ipAddressesCounter.value, 3);
-	
+
 		// second wave of requests with the same IP address
 		await Promise.all([
 			sendRequest(agent),
@@ -80,11 +86,13 @@ describe('express-visitor-counter', () => {
 		]);
 		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` });
 		assert.equal(requestsCounter.value, 6);
+		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		assert.equal(newVisitorsCounter.value, 1);
 		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
 		assert.equal(visitorsCounter.value, 1);
 		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
 		assert.equal(ipAddressesCounter.value, 3);
-	
+
 		// third wave of requests with the same IP address
 		await Promise.all([
 			sendRequest(agent),
@@ -93,11 +101,13 @@ describe('express-visitor-counter', () => {
 		]);
 		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` });
 		assert.equal(requestsCounter.value, 9);
+		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		assert.equal(newVisitorsCounter.value, 1);
 		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
 		assert.equal(visitorsCounter.value, 1);
 		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
 		assert.equal(ipAddressesCounter.value, 3);
-	
+
 		// create a new agent (with a different cookie)
 		agent = createAgent(counterMiddleware);
 		await sendRequest(agent); // init the session
@@ -105,6 +115,8 @@ describe('express-visitor-counter', () => {
 		await sendRequest(agent, '50.50.50.3'); // same cookie but different IP address
 		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` });
 		assert.equal(requestsCounter.value, 12);
+		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		assert.equal(newVisitorsCounter.value, 1);
 		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
 		assert.equal(visitorsCounter.value, 1);
 		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
@@ -120,6 +132,8 @@ describe('express-visitor-counter', () => {
 		await sendRequest(agent);
 		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` });
 		assert.equal(requestsCounter.value, 2);
+		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		assert.isNull(newVisitorsCounter);
 		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
 		assert.equal(visitorsCounter.value, 1);
 		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
@@ -130,12 +144,14 @@ describe('express-visitor-counter', () => {
 	});
 
 	it('check visitor counter with hook', async () => {
-		let requestsCounter = 0, visitorsCounter = 0, ipAddressesCounter = 0;
+		let requestsCounter = 0, newVisitorsCounter = 0, visitorsCounter = 0, ipAddressesCounter = 0;
 
 		// init the visitor counter middleware with the hook function
 		counterMiddleware = visitorCounter({ hook: counterId => {
 			if(counterId.includes('requests'))
 				requestsCounter++;
+			else if(counterId.includes('new-visitors'))
+				newVisitorsCounter++;
 			else if(counterId.includes('visitors'))
 				visitorsCounter++;
 			else if(counterId.includes('ip-addresses'))
@@ -152,6 +168,7 @@ describe('express-visitor-counter', () => {
 			sendRequest(agent, '50.50.50.2')
 		]);
 		assert.equal(requestsCounter, 3);
+		assert.equal(newVisitorsCounter, 0);
 		assert.equal(visitorsCounter, 0);
 		assert.equal(ipAddressesCounter, 3);
 	
@@ -162,6 +179,7 @@ describe('express-visitor-counter', () => {
 			sendRequest(agent)
 		]);
 		assert.equal(requestsCounter, 6);
+		assert.equal(newVisitorsCounter, 1);
 		assert.equal(visitorsCounter, 1);
 		assert.equal(ipAddressesCounter, 3);
 	
@@ -172,6 +190,7 @@ describe('express-visitor-counter', () => {
 			sendRequest(agent)
 		]);
 		assert.equal(requestsCounter, 9);
+		assert.equal(newVisitorsCounter, 1);
 		assert.equal(visitorsCounter, 1);
 		assert.equal(ipAddressesCounter, 3);
 	
@@ -181,7 +200,24 @@ describe('express-visitor-counter', () => {
 		await sendRequest(agent); // increment the counter
 		await sendRequest(agent, '50.50.50.3'); // same cookie but different IP address
 		assert.equal(requestsCounter, 12);
+		assert.equal(newVisitorsCounter, 1);
 		assert.equal(visitorsCounter, 1);
 		assert.equal(ipAddressesCounter, 4);
+
+		// change the date
+		const today = new Date();
+		MockDate.set(today.setDate(today.getDate() + 1));
+		todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
+
+		// send two more requests with a different date
+		await sendRequest(agent);
+		await sendRequest(agent);
+		assert.equal(requestsCounter, 12 + 2);
+		assert.equal(newVisitorsCounter, 1 + 0);
+		assert.equal(visitorsCounter, 1 + 1);
+		assert.equal(ipAddressesCounter, 4 + 1);
+
+		// set back the date
+		MockDate.reset();
 	});
 })

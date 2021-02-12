@@ -30,21 +30,23 @@ module.exports = (config = {}) => {
 		if(!ipAddresses[todayDate])
 			ipAddresses[todayDate] = {};
 
-		// "notFirstVisit" is used because when multiple requests come at the same time from the same web client, they are not identified with the same session id
+		// "notFirstRequest" is used because when multiple requests come at the same time from the same web client, they are not identified with the same session id
 		// the last visit date is set only after the second wave of requests when the cookie has been initialized client-side
 		let withSession = false;
-		if(req.session.notFirstVisit && req.session.lastVisitDate !== todayDate) {
+		if(req.session.notFirstRequest && req.session.lastVisitDate !== todayDate) {
+			// check if this visitor is not came today with the same IP but a different cookie
+			if(!ipAddresses[todayDate][req.ip] || !ipAddresses[todayDate][req.ip].withSession) {
+				incCounter(`${counterPrefix}-visitors-${todayDate}`);
+				!req.session.lastVisitDate && incCounter(`${counterPrefix}-new-visitors-${todayDate}`);
+			}
+
 			// set the last visit date for this visitor
 			req.session.lastVisitDate = todayDate;
 
 			// set the "withSession" boolean to true to avoid incrementing the visitor counter for the same IP with a different cookie
 			withSession = true;
-
-			// check if this visitor is not came today with the same IP but a different cookie
-			if(!ipAddresses[todayDate][req.ip] || !ipAddresses[todayDate][req.ip].withSession)
-				incCounter(`${counterPrefix}-visitors-${todayDate}`);
 		}
-		req.session.notFirstVisit = true;
+		req.session.notFirstRequest = true;
 
 		// check if this IP address is new today
 		if(!ipAddresses[todayDate][req.ip]) {
