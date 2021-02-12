@@ -6,6 +6,7 @@ Express middleware to count visitors using IP address and cookies.
 The middleware will increment 3 counters :
 
 - `requests-dd-mm-yyyy` : number of daily HTTP requests received by the server
+- `new-visitors-dd-mm-yyyy` : number of daily new visitors on your website
 - `visitors-dd-mm-yyyy` : number of daily unique visitors on your website
 - `ip-addresses-dd-mm-yyyy` : number of daily unique ip addresses which hit your server
 
