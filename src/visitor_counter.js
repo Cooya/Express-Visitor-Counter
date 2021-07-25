@@ -4,13 +4,22 @@ module.exports = (config = {}) => {
 	if(!config.collection && !config.hook)
 		throw new Error('A collection or a hook is required.');
 
-	// list of known IP addresses
+	// list of known IP addresses and session ids
 	const ipAddresses = {};
+	const sessionIds = {};
 
 	// call the hook or update the counter in the MongoDB collection
-	const incCounter = config.collection
+	const inc = config.collection
 		? counterId => config.collection.updateOne({ id: counterId }, { $inc: { value: 1 } }, { upsert: true })
 		: config.hook;
+
+	// wrap the counter incrementation with redis synchronisation
+	let incCounter;
+	if(config.redisClient) {
+		// the action is executed only if the key does not exist in the redis database
+		const syncWithRedis = (key, redisKey, action) => redisKey ? config.redisClient.set(redisKey, 'OK', 'NX', 'EX', 48 * 3600, (err, res) => res && action(key)) : action(key);
+		incCounter = (key, redisKey) => syncWithRedis(key, redisKey, inc);
+	} else incCounter = inc;
 
 	return (req, res, next) => {
 		// determine the today date
@@ -26,35 +35,48 @@ module.exports = (config = {}) => {
 		if(req.session === undefined)
 			return next();
 
-		// create a list for the current day to store IP addresses
-		if(!ipAddresses[todayDate])
-			ipAddresses[todayDate] = {};
+		// determine the ip address key and the session key
+		const ipAddressKey = `${todayDate}-${req.ip}`;
+		const sessionKey = `${todayDate}-${req.session.id}`;
 
 		// "notFirstRequest" is used because when multiple requests come at the same time from the same web client, they are not identified with the same session id
 		// the last visit date is set only after the second wave of requests when the cookie has been initialized client-side
-		let withSession = false;
+		let processedToday = false;
 		if(req.session.notFirstRequest && req.session.lastVisitDate !== todayDate) {
-			// check if this visitor is not came today with the same IP but a different cookie
-			if(!ipAddresses[todayDate][req.ip] || !ipAddresses[todayDate][req.ip].withSession) {
-				incCounter(`${counterPrefix}-visitors-${todayDate}`);
-				!req.session.lastVisitDate && incCounter(`${counterPrefix}-new-visitors-${todayDate}`);
+			// check if this visitor is not came today
+			// the IP address and the session are checked to see if they have not already been processed
+			if(
+				(!ipAddresses[ipAddressKey] || !ipAddresses[ipAddressKey].processedToday) &&
+				(!sessionIds[sessionKey] || !sessionIds[sessionKey].processedToday)
+			) {
+				incCounter(`${counterPrefix}-visitors-${todayDate}`, `${req.ip}-visitor-${todayDate}`);
+				!req.session.lastVisitDate && incCounter(`${counterPrefix}-new-visitors-${todayDate}`, `${req.ip}-new-visitor-${todayDate}`);
 			}
 
 			// set the last visit date for this visitor
 			req.session.lastVisitDate = todayDate;
 
-			// set the "withSession" boolean to true to avoid incrementing the visitor counter for the same IP with a different cookie
-			withSession = true;
+			// set the "processedToday" boolean to true to avoid incrementing the visitor counter for the same IP or the same session
+			processedToday = true;
 		}
 		req.session.notFirstRequest = true;
 
 		// check if this IP address is new today
-		if(!ipAddresses[todayDate][req.ip]) {
-			ipAddresses[todayDate][req.ip] = { requests: 1, withSession };
-			incCounter(`${counterPrefix}-ip-addresses-${todayDate}`);
+		if(!ipAddresses[ipAddressKey]) {
+			ipAddresses[ipAddressKey] = { requests: 1, processedToday };
+			incCounter(`${counterPrefix}-ip-addresses-${todayDate}`, `${req.ip}-ip-address-${todayDate}`);
 		} else {
-			ipAddresses[todayDate][req.ip].requests++;
-			ipAddresses[todayDate][req.ip].withSession = withSession || ipAddresses[todayDate][req.ip].withSession;
+			ipAddresses[ipAddressKey].requests++;
+			ipAddresses[ipAddressKey].processedToday = processedToday || ipAddresses[ipAddressKey].processedToday;
+		}
+
+		// check if this session is new today
+		if(!sessionIds[sessionKey]) {
+			sessionIds[sessionKey] = { requests: 1, processedToday };
+			incCounter(`${counterPrefix}-session-${todayDate}`, `${req.session.id}-session-${todayDate}`);
+		} else {
+			sessionIds[sessionKey].requests++;
+			sessionIds[sessionKey].processedToday = processedToday || sessionIds[sessionKey].processedToday;
 		}
 		next();
 	};
