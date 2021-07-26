@@ -18,7 +18,8 @@ npm i express-visitor-counter
 
 ## Usage
 
-The middleware needs the Express option `trust proxy` to be set to true and the `express-session` middleware.
+The middleware needs the Express option `trust proxy` to be set to true and the `express-session` middleware.  
+The middleware can be used with multiple instances of server if counters are stored in Redis database.
 
 With a MongoDB collection :
 
@@ -55,6 +56,27 @@ const counters = {};
   app.enable('trust proxy');
   app.use(expressSession({ secret: 'secret', resave: false, saveUninitialized: true }));
   app.use(expressVisitorCounter({ hook: counterId => counters[counterId] = (counters[counterId] || 0) + 1 }));
+  app.get('/', (req, res, next) => res.json(counters));
+  app.listen(8080);
+})();
+```
+
+With counters synchronized and stored in Redis database :
+
+```js
+const express = require('express');
+const expressSession = require('express-session');
+const expressVisitorCounter = require('express-visitor-counter');
+const redis = require('redis');
+
+const counters = {};
+const redisClient = redis.createClient({ db: 1 });
+
+(async () => {
+  const app = express();
+  app.enable('trust proxy');
+  app.use(expressSession({ secret: 'secret', resave: false, saveUninitialized: true }));
+  app.use(expressVisitorCounter({ hook: counterId => counters[counterId] = (counters[counterId] || 0) + 1, redisClient }));
   app.get('/', (req, res, next) => res.json(counters));
   app.listen(8080);
 })();
