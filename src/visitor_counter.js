@@ -73,7 +73,7 @@ module.exports = (config = {}) => {
 		// check if this session is new today
 		if(!sessionIds[sessionKey]) {
 			sessionIds[sessionKey] = { requests: 1, processedToday };
-			incCounter(`${counterPrefix}-session-${todayDate}`, `${req.session.id}-session-${todayDate}`);
+			incCounter(`${counterPrefix}-sessions-${todayDate}`, `${req.session.id}-session-${todayDate}`);
 		} else {
 			sessionIds[sessionKey].requests++;
 			sessionIds[sessionKey].processedToday = processedToday || sessionIds[sessionKey].processedToday;
