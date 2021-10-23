@@ -1,5 +1,7 @@
 const dateFormat = require('dateformat');
 
+const twoDays = 48 * 3600;
+
 module.exports = (config = {}) => {
 	if(!config.collection && !config.hook)
 		throw new Error('A collection or a hook is required.');
@@ -17,7 +19,7 @@ module.exports = (config = {}) => {
 	let incCounter;
 	if(config.redisClient) {
 		// the action is executed only if the key does not exist in the redis database
-		const syncWithRedis = (key, redisKey, action) => redisKey ? config.redisClient.set(redisKey, 'OK', 'NX', 'EX', 48 * 3600, (err, res) => res && action(key)) : action(key);
+		const syncWithRedis = (key, redisKey, action) => redisKey ? config.redisClient.set(redisKey, 'OK', { NX: true, EX: twoDays }).then(res => res && action(key), err => { throw err }) : action(key);
 		incCounter = (key, redisKey) => syncWithRedis(key, redisKey, inc);
 	} else incCounter = inc;
 

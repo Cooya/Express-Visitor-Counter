@@ -28,7 +28,7 @@ With a MongoDB collection :
 const express = require('express');
 const expressSession = require('express-session');
 const expressVisitorCounter = require('express-visitor-counter');
-const MongoClient = require('mongodb').MongoClient;
+const { MongoClient } = require('mongodb');
 
 (async () => {
   const dbConnection = await MongoClient.connect('mongodb://localhost/test', { useUnifiedTopology: true });
@@ -71,9 +71,11 @@ const expressVisitorCounter = require('express-visitor-counter');
 const redis = require('redis');
 
 const counters = {};
-const redisClient = redis.createClient({ db: 1 });
+const redisClient = redis.createClient({ database: 1 });
 
 (async () => {
+  await redisClient.connect();
+
   const app = express();
   app.enable('trust proxy');
   app.use(expressSession({ secret: 'secret', resave: false, saveUninitialized: true }));

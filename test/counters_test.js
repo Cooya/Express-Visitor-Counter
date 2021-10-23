@@ -35,17 +35,18 @@ describe('express-visitor-counter', () => {
 	before(async () => {
 		dbConnection = await MongoClient.connect('mongodb://localhost/test', { useUnifiedTopology: true });
 		counters = dbConnection.db().collection('counters');
-		redisClient = redis.createClient({ db: 1 });
+		redisClient = redis.createClient({ database: 1 });
+		await redisClient.connect();
 	});
 
 	beforeEach(async () => {
 		await counters.deleteMany();
-		redisClient.flushdb();
+		await redisClient.flushDb();
 	});
 
 	after(async () => {
 		await dbConnection.close();
-		redisClient.quit();
+		await redisClient.quit();
 	});
 
 	it('check visitor counter with MongoDB collection', async () => {
