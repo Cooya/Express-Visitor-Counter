@@ -18,8 +18,13 @@ module.exports = (config = {}) => {
 	// wrap the counter incrementation with redis synchronisation
 	let incCounter;
 	if(config.redisClient) {
+		// support for node-redis v3 and v4
+		const redisSet = config.redisClient.flushdb ?
+			key => new Promise((resolve, reject) => config.redisClient.set(key, 'OK', 'NX', 'EX', twoDays, (err, res) => err ? reject(err) : resolve(res))) : // v3
+			key => config.redisClient.set(key, 'OK', { NX: true, EX: twoDays }); // v4
+
 		// the action is executed only if the key does not exist in the redis database
-		const syncWithRedis = (key, redisKey, action) => redisKey ? config.redisClient.set(redisKey, 'OK', { NX: true, EX: twoDays }).then(res => res && action(key), err => { throw err }) : action(key);
+		const syncWithRedis = (key, redisKey, action) => redisKey ? redisSet(redisKey).then(res => res && action(key), err => { throw err }) : action(key);
 		incCounter = (key, redisKey) => syncWithRedis(key, redisKey, inc);
 	} else incCounter = inc;
 

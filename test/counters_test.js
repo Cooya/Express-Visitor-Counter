@@ -4,6 +4,7 @@ const express = require('express');
 const expressSession = require('express-session');
 const MockDate = require('mockdate');
 const MongoClient = require('mongodb').MongoClient;
+const { promisify } = require('util');
 const redis = require('redis');
 const request = require('supertest');
 
@@ -28,6 +29,18 @@ function sleep(seconds) {
 	return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 
+async function getTtl(redisClient) {
+	// v3
+	if(redisClient.flushdb) {
+		const keys = await promisify(redisClient.keys).call(redisClient, '*');
+		return await promisify(redisClient.ttl).call(redisClient, keys[0]);
+	}
+
+	// v4
+	const keys = await redisClient.keys('*');
+	return await redisClient.ttl(keys[0]);
+}
+
 describe('express-visitor-counter', () => {
 	let todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 	let dbConnection, counters, redisClient;
@@ -35,13 +48,17 @@ describe('express-visitor-counter', () => {
 	before(async () => {
 		dbConnection = await MongoClient.connect('mongodb://localhost/test', { useUnifiedTopology: true });
 		counters = dbConnection.db().collection('counters');
-		redisClient = redis.createClient({ database: 1 });
-		await redisClient.connect();
+		redisClient = redis.createClient({ db: 1, database: 1 }); // v3 or v4
+		if(redisClient.connect)
+			await redisClient.connect(); // v4
 	});
 
 	beforeEach(async () => {
 		await counters.deleteMany();
-		await redisClient.flushDb();
+		if(redisClient.flushdb)
+			redisClient.flushdb(); // v3
+		else
+			await redisClient.flushDb(); // v4
 	});
 
 	after(async () => {
@@ -297,6 +314,7 @@ describe('express-visitor-counter', () => {
 		assert.equal(newVisitorsCounter, 0);
 		assert.equal(visitorsCounter, 0);
 		assert.equal(ipAddressesCounter, 3);
+		assert.equal(await getTtl(redisClient), 172800); // two days
 
 		// second wave of requests with 3 different IP addresses
 		await Promise.all([
