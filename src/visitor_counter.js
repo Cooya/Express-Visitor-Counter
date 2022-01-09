@@ -32,11 +32,12 @@ module.exports = (config = {}) => {
 		// determine the today date
 		const todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 
-		// determine the counter prefix
-		const counterPrefix = config.prefix || req.hostname;
+		// methods to build a counter id
+		const getPrefixedCounter = buildCounterId.bind(null, !config.withoutDate && todayDate, config.prefix || req.hostname);
+		const getCounter = buildCounterId.bind(null, !config.withoutDate && todayDate);
 
 		// increment the counter of requests
-		incCounter(`${counterPrefix}-requests-${todayDate}`);
+		incCounter(getPrefixedCounter('requests'));
 
 		// check if the express-session middleware is enabled
 		if(req.session === undefined)
@@ -56,8 +57,8 @@ module.exports = (config = {}) => {
 				(!ipAddresses[ipAddressKey] || !ipAddresses[ipAddressKey].processedToday) &&
 				(!sessionIds[sessionKey] || !sessionIds[sessionKey].processedToday)
 			) {
-				incCounter(`${counterPrefix}-visitors-${todayDate}`, `${req.ip}-visitor-${todayDate}`);
-				!req.session.lastVisitDate && incCounter(`${counterPrefix}-new-visitors-${todayDate}`, `${req.ip}-new-visitor-${todayDate}`);
+				incCounter(getPrefixedCounter('visitors'), getCounter(req.ip, 'visitor'));
+				!req.session.lastVisitDate && incCounter(getPrefixedCounter('new-visitors'), getCounter(req.ip, 'new-visitor'));
 			}
 
 			// set the last visit date for this visitor
@@ -71,7 +72,7 @@ module.exports = (config = {}) => {
 		// check if this IP address is new today
 		if(!ipAddresses[ipAddressKey]) {
 			ipAddresses[ipAddressKey] = { requests: 1, processedToday };
-			incCounter(`${counterPrefix}-ip-addresses-${todayDate}`, `${req.ip}-ip-address-${todayDate}`);
+			incCounter(getPrefixedCounter('ip-addresses'), getCounter(req.ip, 'ip-address'));
 		} else {
 			ipAddresses[ipAddressKey].requests++;
 			ipAddresses[ipAddressKey].processedToday = processedToday || ipAddresses[ipAddressKey].processedToday;
@@ -80,7 +81,7 @@ module.exports = (config = {}) => {
 		// check if this session is new today
 		if(!sessionIds[sessionKey]) {
 			sessionIds[sessionKey] = { requests: 1, processedToday };
-			incCounter(`${counterPrefix}-sessions-${todayDate}`, `${req.session.id}-session-${todayDate}`);
+			incCounter(getPrefixedCounter('sessions'), getCounter(req.session.id, 'session'));
 		} else {
 			sessionIds[sessionKey].requests++;
 			sessionIds[sessionKey].processedToday = processedToday || sessionIds[sessionKey].processedToday;
@@ -88,3 +89,7 @@ module.exports = (config = {}) => {
 		next();
 	};
 };
+
+function buildCounterId(todayDate, prefix, counterName) {
+	return todayDate ? `${prefix}-${counterName}-${todayDate}` : `${prefix}-${counterName}`
+}

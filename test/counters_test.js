@@ -277,6 +277,19 @@ describe('express-visitor-counter', () => {
 
 		// set back the date
 		MockDate.reset();
+
+		// init another visitor counter middleware with the hook function but without date in the counter ids
+		const counterIds = [];
+		counterMiddleware = visitorCounter({ hook: counterId => {
+			counterIds.push(counterId);
+		}, withoutDate: true });
+
+		// create a new agent and send a request
+		agent = createAgent(counterMiddleware);
+		await sendRequest(agent);
+
+		// check that the counter ids are without date
+		assert.deepEqual(counterIds, ['127.0.0.1-requests', '127.0.0.1-ip-addresses', '127.0.0.1-sessions'])
 	});
 
 	it('check visitor counter with hook and ip addresses stored in redis', async () => {
