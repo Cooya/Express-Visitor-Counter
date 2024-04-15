@@ -8,6 +8,8 @@ The middleware will increment 5 counters :
 - `requests-dd-mm-yyyy` : number of daily HTTP requests received by the server
 - `new-visitors-dd-mm-yyyy` : number of daily new visitors on your website
 - `visitors-dd-mm-yyyy` : number of daily unique visitors on your website
+- `new-visitors-from-mobile-dd-mm-yyyy` : number of daily new visitors from a mobile device on your website
+- `visitors-from-mobile-dd-mm-yyyy` : number of daily unique visitors from a mobile device on your website
 - `ip-addresses-dd-mm-yyyy` : number of daily unique ip addresses which hit your server
 - `sessions-dd-mm-yyyy` : number of daily unique sessions which hit your server
 
@@ -87,7 +89,7 @@ const redisClient = redis.createClient({ database: 1 });
 
 ## Tests
 
-The tests will use Mocha and require MongoDB to be running.
+The tests will use Mocha and require MongoDB and Redis to be running.
 
 ```bash
 npm test
