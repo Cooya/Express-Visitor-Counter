@@ -1,6 +1,6 @@
 {
   "name": "express-visitor-counter",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Express middleware to count visitors using IP address and cookies",
   "main": "index.js",
   "scripts": {
