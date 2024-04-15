@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/express-visitor-counter.svg)](https://www.npmjs.com/package/express-visitor-counter)
 
 Express middleware to count visitors using IP address and cookies.
-The middleware will increment 5 counters :
+The middleware will increment 7 counters :
 
 - `requests-dd-mm-yyyy` : number of daily HTTP requests received by the server
 - `new-visitors-dd-mm-yyyy` : number of daily new visitors on your website
