@@ -19,9 +19,12 @@ function createAgent(counterMiddleware) {
 	return request.agent(app);
 }
 
-function sendRequest(agent, ipAddress = '50.50.50.0') {
+function sendRequest(agent, ipAddress = '50.50.50.0', userAgent = null) {
 	return new Promise(resolve => {
-		agent.get('/').set('X-Forwarded-For', ipAddress).end(resolve);
+		let request = agent.get('/').set('X-Forwarded-For', ipAddress);
+		if(userAgent)
+			request = request.set('User-Agent', userAgent);
+		return request.end(resolve);
 	});
 }
 
@@ -42,7 +45,7 @@ async function getTtl(redisClient) {
 }
 
 describe('express-visitor-counter', () => {
-	let todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
+	const todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 	let dbConnection, counters, redisClient;
 
 	before(async () => {
@@ -179,7 +182,7 @@ describe('express-visitor-counter', () => {
 		// change the date
 		const today = new Date();
 		MockDate.set(today.setDate(today.getDate() + 1));
-		todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
+		const mockedTodayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 
 		// fifth wave of requests with a different date
 		await sendRequest(agent);
@@ -188,13 +191,13 @@ describe('express-visitor-counter', () => {
 		await sendRequest(agent2);
 
 		// check the counters
-		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${todayDate}` });
+		requestsCounter = await counters.findOne({ id: `127.0.0.1-requests-${mockedTodayDate}` });
 		assert.equal(requestsCounter.value, 4);
-		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${todayDate}` });
+		newVisitorsCounter = await counters.findOne({ id: `127.0.0.1-new-visitors-${mockedTodayDate}` });
 		assert.isNull(newVisitorsCounter);
-		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${todayDate}` });
+		visitorsCounter = await counters.findOne({ id: `127.0.0.1-visitors-${mockedTodayDate}` });
 		assert.equal(visitorsCounter.value, 1);
-		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${todayDate}` });
+		ipAddressesCounter = await counters.findOne({ id: `127.0.0.1-ip-addresses-${mockedTodayDate}` });
 		assert.equal(ipAddressesCounter.value, 1);
 
 		// set back the date
@@ -205,7 +208,7 @@ describe('express-visitor-counter', () => {
 		let requestsCounter = 0, newVisitorsCounter = 0, visitorsCounter = 0, ipAddressesCounter = 0;
 
 		// init the visitor counter middleware with the hook function
-		counterMiddleware = visitorCounter({ hook: counterId => {
+		let counterMiddleware = visitorCounter({ hook: counterId => {
 			if(counterId.includes('requests'))
 				requestsCounter++;
 			else if(counterId.includes('new-visitors'))
@@ -265,7 +268,6 @@ describe('express-visitor-counter', () => {
 		// change the date
 		const today = new Date();
 		MockDate.set(today.setDate(today.getDate() + 1));
-		todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 
 		// send two more requests with a different date
 		await sendRequest(agent);
@@ -404,7 +406,6 @@ describe('express-visitor-counter', () => {
 		// change the date
 		const today = new Date();
 		MockDate.set(today.setDate(today.getDate() + 1));
-		todayDate = dateFormat(new Date(), 'dd-mm-yyyy');
 
 		// sixth wave of requests with a different date
 		await sendRequest(agent);
@@ -420,5 +421,25 @@ describe('express-visitor-counter', () => {
 
 		// set back the date
 		MockDate.reset();
+	});
+
+	it('check visitor counter with mobile user-agent', async () => {
+		const counterIds = [];
+		const counterMiddleware = visitorCounter({ hook: counterId => {
+			counterIds.push(counterId);
+		} });
+
+		// create a new mobile agent and send a request
+		agent = createAgent(counterMiddleware);
+		await sendRequest(agent, '0.0.0.0', 'Mozilla/5.0 (Linux; Android 13; SAMSUNG SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/21.0 Chrome/110.0.5481.154 Mobile Safari/537.36');
+
+		// the counters for visits are not have been incremented yet (2 requests are required)
+		let expectedCounterIds = ['127.0.0.1-requests', '127.0.0.1-ip-addresses', '127.0.0.1-sessions'];
+		assert.deepEqual(counterIds, expectedCounterIds.map(counterId => `${counterId}-${todayDate}`));
+
+		// the counters for visits have been incremented
+		expectedCounterIds = ['127.0.0.1-requests', '127.0.0.1-ip-addresses', '127.0.0.1-sessions', '127.0.0.1-requests', '127.0.0.1-visitors', '127.0.0.1-new-visitors', '127.0.0.1-visitors-from-mobile', '127.0.0.1-new-visitors-from-mobile'];
+		await sendRequest(agent, '0.0.0.0', 'Mozilla/5.0 (Linux; Android 13; SAMSUNG SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/21.0 Chrome/110.0.5481.154 Mobile Safari/537.36');
+		assert.deepEqual(counterIds, expectedCounterIds.map(counterId => `${counterId}-${todayDate}`));
 	});
 })
